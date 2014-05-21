@@ -20,7 +20,8 @@
 %% @doc CAS Client Library
 -module(cas_client_core).
 
--export([config/2, login_url/2, logout_url/2, validate/3, pgt_iou/2, proxy_ticket/3]).
+-export([config/2, login_url/2, logout_url/2, validate/3, pgt_iou/2, proxy_ticket/3,
+         parse_single_sign_out_request/1]).
 -export([user/1, attribute/2]).
 
 -export([url_encode/1, current_time/0]).
@@ -227,6 +228,25 @@ proxy_ticket(ServiceURL, Attrs, ConfigFun) ->
       ReplyInfo ->
         lager:error("Received unexpected ReplyInfo from httpc for ~s : ~p", [ProxyURL, ReplyInfo]),
         error
+      end
+    end
+  end.
+
+%% @doc Return the CAS Service Ticket associated with the specified Single Sign Out request body.
+%% Returns 'not_sso' if the specified body does not appear to be a Single Sign Out request.  Returns
+%% 'error' if the specified body appears to be a Single Sign Out request but parsing fails.
+-spec parse_single_sign_out_request(Body) -> {ok, Ticket} | not_sso | error
+  when Body::binary(), Ticket::binary().
+parse_single_sign_out_request(Body) ->
+  case catch parse_xml(Body) of
+  {'EXIT', _Reason} -> not_sso;
+  Doc ->
+    case find_tag('LogoutRequest', [Doc]) of
+    undefined -> not_sso;
+    LogoutRequest ->
+      case find_tag('SessionIndex', LogoutRequest#xmlElement.content) of
+      #xmlElement{content = [#xmlText{value = Ticket}]} -> {ok, Ticket};
+      _ -> error
       end
     end
   end.

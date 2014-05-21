@@ -1,10 +1,12 @@
 # CAS Client Library for Erlang
 
-This Erlang OTP application provides a webserver/framework-independent library for performing client side [CAS](http://www.jasig.org/cas) authentication operations.  In general, this library is meant to be used by another webserver/framework-specific library, and is not meant to be used directly.
+This Erlang OTP application provides a webserver/framework-independent library for performing client side [CAS](http://www.jasig.org/cas) authentication operations.  All features of the published [CAS protocols](http://www.jasig.org/cas/protocol) are supported, as well as SAML 1.1 and [Single-Sign-Out](https://wiki.jasig.org/display/CASUM/Single+Sign+Out).
 
-Canonical source can be found at [https://github.com/PaulSD/erlang_cas_client_core](https://github.com/PaulSD/erlang_cas_client_core)
+In general, this library is meant to be used by another webserver/framework-specific library, and is not meant to be used directly.
 
 An example webserver/framework specific library that uses this library can be found at [https://github.com/PaulSD/erlang_cas_client_cowboy](https://github.com/PaulSD/erlang_cas_client_cowboy)
+
+Canonical source can be found at [https://github.com/PaulSD/erlang_cas_client_core](https://github.com/PaulSD/erlang_cas_client_core)
 
 ## Configuration
 
@@ -19,7 +21,7 @@ Configuration options should be set in the application environment, typically de
 ].
 ```
 
-Core configuration options are documented in [cas_client_core_config](src/cas_client_core_config.erl)
+Core configuration options are documented in [cas_client_core_config](blob/master/src/cas_client_core_config.erl)
 
 ## License
 
