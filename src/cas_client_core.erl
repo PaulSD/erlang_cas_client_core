@@ -368,12 +368,12 @@ parse_cas_response(cas20, Body) ->
     #xmlElement{name = 'cas:serviceResponse', content = RespContent} ->
       case RespContent of
       [#xmlElement{name = 'cas:authenticationSuccess', content = XMLAttrs}] ->
-        {ok, lists:flatten(parse_cas20_attributes(XMLAttrs))};
+        {ok, lists:flatten(parse_cas20_attributes(XMLAttrs, Body))};
       [#xmlElement{name = 'cas:authenticationFailure'}] ->
         lager:error("CAS returned Authentication Failure~nCAS Response:~n~s", [Body]),
         error;
-      El ->
-        lager:error("Unexpected XML contents in response from CAS: ~p~nCAS Response:~n~s", [El, Body]),
+      Els ->
+        lager:error("Unexpected XML contents in response from CAS: ~p~nCAS Response:~n~s", [Els, Body]),
         error
       end;
     #xmlElement{name = Name} ->
@@ -500,7 +500,7 @@ parse_cas_response(saml11, Body) ->
                             lager:error("No AttributeStatement tag in response from CAS~nCAS Response:~n~s", [Body]),
                             error;
                           AttributeStatement ->
-                            Attrs = parse_saml11_attributes(AttributeStatement#xmlElement.content),
+                            Attrs = parse_saml11_attributes(AttributeStatement#xmlElement.content, Body),
                             {ok, [Method | Attrs]}
                           end
                         end
@@ -521,17 +521,23 @@ parse_cas_response(saml11, Body) ->
 -spec parse_xml(XML::binary()) -> #xmlElement{}.
 parse_xml(XML) ->
   {Doc, _Rest} = xmerl_scan:string(binary_to_list(XML), [{space, normalize}, {comments, false}]),
-  strip_empty_xmltext(Doc).
-strip_empty_xmltext(#xmlElement{content = []} = El) -> El;
-strip_empty_xmltext(#xmlElement{content = Children} = El) ->
+  cleanup_xml(Doc).
+
+%% @private
+%% @doc Delete any elements other than xmlElement or xmlText, delete any whitespace xmlText
+%% elements, and merge multiple child xmlText elements within the same parent xmlElement.
+cleanup_xml(#xmlElement{content = []} = El) -> El;
+cleanup_xml(#xmlElement{content = Children} = El) ->
   Fun =
     fun
-    (#xmlElement{} = ChildEl) -> {true, strip_empty_xmltext(ChildEl)};
-    (#xmlText{value = " "}) -> false;
-    (#xmlText{}) -> true;
-    (_) -> false
+    (#xmlElement{} = ChildEl, Acc) -> [cleanup_xml(ChildEl) | Acc];
+    (#xmlText{value = " "}, Acc) -> Acc;
+    (#xmlText{value = V2}, [#xmlText{value = V1} = ChildEl | Acc]) ->
+      [ChildEl#xmlText{value = [V1 | V2]} | Acc];
+    (#xmlText{} = ChildEl, Acc) -> [ChildEl | Acc];
+    (_, Acc) -> Acc
     end,
-  El#xmlElement{content = lists:filtermap(Fun, Children)}.
+  El#xmlElement{content = lists:reverse(lists:foldl(Fun, [], Children))}.
 
 %% @private
 %% @doc Find an xmlElement with the specified name (without namespace) in the specified list.  Does
@@ -558,8 +564,9 @@ find_attr(Name, [_El | Rest]) -> find_attr(Name, Rest).
 
 %% @private
 %% @doc Recursively parse attributes in a CAS 2.0 response.
--spec parse_cas20_attributes(list(#xmlElement{})) -> iolist().
-parse_cas20_attributes(XMLAttrs) ->
+-spec parse_cas20_attributes(list(#xmlElement{}), Body) -> iolist()
+  when Body::binary().
+parse_cas20_attributes(XMLAttrs, Body) ->
   Fun =
     fun
     (#xmlElement{name = Tag, content = [#xmlText{value = Value}]}) ->
@@ -573,14 +580,18 @@ parse_cas20_attributes(XMLAttrs) ->
       [_NameSpace, Name] -> {list_to_binary(Name), <<>>}
       end;
     (#xmlElement{content = Children}) ->
-      parse_cas20_attributes(Children)
+      parse_cas20_attributes(Children, Body);
+    (Els) ->
+      lager:warning("Unexpected XML contents in response from CAS: ~p~nCAS Response:~n~s", [Els, Body]),
+      []
     end,
   lists:map(Fun, XMLAttrs).
 
 %% @private
 %% @doc Parse children of a SAML 1.1 AttributeStatement tag.
--spec parse_saml11_attributes(list(any())) -> attributes().
-parse_saml11_attributes(XMLAttrs) ->
+-spec parse_saml11_attributes(list(any()), Body) -> attributes()
+  when Body::binary().
+parse_saml11_attributes(XMLAttrs, _) ->
   Fun =
     fun
     (#xmlElement{name = RawTag, attributes = Attrs, content = Children}) ->
