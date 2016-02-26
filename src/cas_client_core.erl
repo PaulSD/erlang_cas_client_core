@@ -69,7 +69,7 @@ login_url(ServiceURL, ConfigFun) ->
 -spec logout_url(undefined | AppURL, ConfigFun) -> LogoutURL
   when AppURL::binary(), LogoutURL::binary(), ConfigFun::config_get_fun().
 logout_url(AppURL, ConfigFun) ->
-  URL = case AppURL of undefined -> <<>>; _ -> <<"?url=", AppURL/binary>> end,
+  URL = case AppURL of undefined -> <<>>; _ -> <<"?url=", (url_encode(AppURL))/binary>> end,
   <<(config(cas_base_url, ConfigFun))/binary, "/logout", URL/binary>>.
 
 %% @doc Validate the specified CAS Ticket associated with the specified Service URL and return the
@@ -172,7 +172,7 @@ proxy_ticket(ServiceURL, Attrs, ConfigFun) ->
       lager:debug("Returning undefined to Proxy Ticket request for Service ~s with CAS attributes ~p", [ServiceURL, Attrs]),
       undefined;
     PGT ->
-      ProxyURL = <<(config(cas_base_url, ConfigFun))/binary, "/proxy?pgt=", PGT/binary,
+      ProxyURL = <<(config(cas_base_url, ConfigFun))/binary, "/proxy?pgt=", (url_encode(PGT))/binary,
         "&targetService=", (url_encode(ServiceURL))/binary>>,
       lager:debug("Calling ~s", [ProxyURL]),
       case httpc_request(get, {ProxyURL, []}, [], ConfigFun) of
